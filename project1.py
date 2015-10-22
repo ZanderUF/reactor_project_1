@@ -8,9 +8,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-
-#Variables
-num_src_neut = 10
+####------------Variables----------------###
+num_src_neut = 1000
 abs_xs_lime = 0.1 #micro Units: b
 abs_xs_oil = 0.2 #micro Units: b
 total_xs_limestone = 0.3 #micro Units: b
@@ -18,149 +17,180 @@ total_xs_oil = 0.4 #micro Units: b
 y=0
 density = 2.3*(1 + 0.1*y)
 intial_energy = 2.5 #Units: MeV
-N_A = 6.002 * np.power(10,13)
+Avagadro = 6.002 * np.power(10,13)
 A_mass_lime = 100.0869 #Units: g/mol [src: PNNL]
 A_mass_oil = 50  #Units: g/mol [src: PNNL]
 oil_dist = 20 #Units: meters
-scattered_back = 0
-tot_absorb = 0
-tot_absorb_ar = [] #array to hold absorbed neutrons
-tot_reflected = 0
-tot_reflected_ar = [] #array to hold neutrons reflected back to the Earth
-trans = 0
-trans_ar = [] # array to hold neutrons transmitted past pt of interest (ie 25cm)
+y_max = 25
+a=2.3
+b=0.1
 
-#create neutron class
-class Neutron(object):
-    energy= 2.5
-    direction = 1
-    ther_fast = False #False = fast // True = thermal
-    distance = 0
-    def __init__(self,energy,direction,ther_fast,distance):
-        self.energy = energy
-        self.direction = direction
-        self.ther_fast = ther_fast
-        self.distance = distance
+###--------------------------------------###
+tally={'absorbed':0,'scattered':0,'leaked':0,'transmitted':0}
 
-#function to determine which atom a neutron will interact with in limestone
-#returns microscopic xs of selected material
-#Determined from atomic fraction given in PNNL data
-def which_mat_lime():
-    xs = 0
-    #pick random #
-    rand = np.random.rand()
-    if rand < 0.2 :
-        #select carbon
-        xs = 1 #fill in cs for carbon
-    else:
-        if rand < 0.4:
-            #select calcium
-            xs =2 # fill in xs for calcium
-        else:
-            #select Oxygen
-            xs = 3
-    return xs
-#function to determine which atom a neutron will interact with in Oil
-def which_mat_oil():
-    xs=0
-    #pick random #
-    rand = np.random.rand()
-    if rand < 0.002815 :
-    #select Sulfur
-        xs = 1
-    else:
-        if rand < 0.002578:
-            #select Nitrogen
-            xs = 2
-        else:
-            if rand < 0.36522:
-                #select Carbon
-                xs = 3
-            else:
-                #select Hydrogen
-                xs = 4
-            
-    return xs
+##calculate the density based on given linear density variation##
+def calc_density(a,b,position):
+    density_max = a*(1+b*position)
+    return density_max
 
 ## Calculated macroscopic xs
-def calc_macro_xs(N_A,A_mass,p,micro):
-    macro = 1
-    macro = (N_A*p*micro)/A_mass
-    return macro
-    
+def calc_macro_xs(N_A,A_mass,density,micro_xs):
+    macro_xs = 1
+    macro_xs = (N_A*density*micro_xs)/A_mass
+    return macro_xs
+
+##create neutron object
+class Neutron(object):
+    def __init__(self,direction=1,group='fast',distance=0,sigma_a=1,sigma_s=1,result='scattered'):
+        self.direction = direction
+        self.group = group
+        self.distance = distance
+        self.sigma_a = sigma_a
+        self.sigma_s = sigma_s
+        self.result = result
+
+    def absorbed(self):
+        self.result = "absorbed"
+
+    def scattered(self):
+        self.result = "scattered"
+        
+    def leaked(self):
+        self.result = "leaked"
+
+    def transmitted(self):
+        self.transmitted = "transmitted"
+
+##-----Goes through the logic to see what interaction happens, how neutron transports through !!-----##
+    def transport(self):
+        #Determine if absorbed
+
+        if self.distance<oil_dist:  
+            #in limestone
+            self.lime_stone()
+        else:
+            #in oil
+            self.in_oil()
+            
+    def scatter(self):
+        #counter = 0
+        #total_dist=0
+        A_mass=1
+        micro_xs = .5
+        previous_pt = self.distance
+        density_max = calc_density(a,b,y_max)
+        ## Find max macroscopic xs
+        macro_xs_max = calc_macro_xs(Avagadro,A_mass,density_max,self.sigma_s)
+        
+        ##--get new path length--##
+        path_length = np.divide(-1,macro_xs_max) * np.log(np.random.rand())
+
+        ##Sample new angle
+        self.direction = np.random.uniform(-1,1)
+
+        ##--Calculate new point--##
+        new_pt = previous_pt + path_length*self.direction
+        ##--Find second random number to determine if path length should be accepted##
+        
+        rand_2 = np.random.rand()
+        den_at_pt = calc_density(a,b,new_pt)
+        xs_at_pt = calc_macro_xs(Avagadro,A_mass,den_at_pt,micro_xs)
+        
+        #print 'xs/max xs', np.divide(xs_at_pt,macro_xs_max)
+        #print 'rand 2 ', rand_2
+        if rand_2 < np.divide(xs_at_pt,macro_xs_max):
+            ##pt is accpeted
+            self.distance = previous_pt + new_pt        
+
+    #function to determine which atom a neutron will interact with in limestone
+    #Determined from atomic fraction given in PNNL data
+    def which_mat_lime(self):
+        xs = 0
+        #pick random #
+        rand = np.random.rand()
+        if rand < 0.2 :
+            #select carbon
+            self.sigma_s = 1 #fill in cs for carbon
+        else:
+            if rand < 0.4:
+                #select calcium
+                self.sigma_s  = 2 # fill in xs for calcium
+            else:
+                #select Oxygen
+                self.sigma_s  = 3
+
+    #function to determine which atom a neutron will interact with in Oil
+    def which_mat_oil(self):
+        xs=0
+        #pick random #
+        rand = np.random.rand()
+        if rand < 0.002815 :
+        #select Sulfur
+            self.sigma_s  = 1
+        else:
+            if rand < 0.002578:
+                #select Nitrogen
+                self.sigma_s  = 2
+            else:
+                if rand < 0.36522:
+                    #select Carbon
+                    self.sigma_s  = 3
+                else:
+                    #select Hydrogen
+                    self.sigma_s  = 4
+
+    def lime_stone(self):
+        ####----in limestone----####
+        abs_rand = np.random.rand()
+        if abs_rand < (abs_xs_lime/total_xs_limestone):
+            self.absorbed()
+        else:
+            #scattering
+            ##Determine which element to scatter with
+            self.which_mat_oil()
+            self.scatter()
+
+            if self.distance < 0 :
+                #neutron reflected back to surface
+                self.leaked()
+            elif self.distance > 25 :
+                #neutron reflected past point of interest
+                self.transmitted()
+
+###--------in Oil---------###
+    def in_oil(self):
+        abs_rand = np.random.rand()
+        #test if  absorbed in oil
+        if abs_rand < (abs_xs_oil/total_xs_oil): 
+                self.absorbed()
+        else:
+            #scattering
+            ##Determine which element to scatter with
+            self.which_mat_lime()
+            self.scatter()
+
+            if self.distance < 0 :
+                    #neutron reflected back to surface
+                    self.leaked()
+            elif self.distance > 25 :
+                    #neutron reflected past point of interest
+                    self.transmitted()
 
 #example creation of a neutron
+def run():
+    i = 0
+    for i in range(num_src_neut):
+        #total_dist = 0  #
+        #absorbed = 0 #flag if absorbed
 
-i = 0
-while i < num_src_neut:
-   total_dist = 0  #
-   absorbed = 0 #flag if absorbed
-   #initally travel normal to Earths Surface
-   ##determine initial cross section
-   curr_dist = 1
-   n = Neutron(2.5,0,False,0)
-   while (absorbed == 0):  
-       #particle not absorbed keep going
-       abs_rand = np.random.rand() 
-       ###in Oil
-       if n.distance>oil_dist: # in oil
-           print 'in oil'
-           #test if  absorbed in oil
-           if abs_rand < (abs_xs_oil/total_xs_oil): 
-                print 'absorbed in oil'
-                tot_absorb = tot_absorb + 1
-                tot_absorb_ar.append(n)
-                absorbed = 1
-           else:
-               #scattering
-               print 'scattering'
-               ##Determine which element to scatter with
-               xs = which_mat_lime()
-               #calculate macroscopic xs
-               macro =calc_macro_xs(N_A,A_mass_oil,p,xs)
-                    #calculate distance to travel
-                    #calculate angle
-                    #calculate new energy
-                    #add to total distance
-               if n.distance < 0 :
-                    #neutron reflected back to surface
-                    tot_reflected = tot_reflected + 1
-                    tot_reflected_ar.append(n)
-                    absorbed = 1 #flag to get out of loop
-               elif n.distance > 25 :
-                    #neutron reflected past point of interest
-                    absorbed = 1
-                    trans = trans +1
-                    trans_ar.append(n)
-       ####in limestone
-       if n.distance<oil_dist:  
-            print 'in limestone'
-            #check if absorbed in limestone
-            if abs_rand < (abs_xs_lime/total_xs_limestone):
-                print 'absorbed in limestone'
-                tot_absorb = tot_absorb + 1
-            else:
-                #scattering
-                print 'scattering in limestone'
-                ##Determine which element to scatter with
-                xs = which_mat_oil()
-                    #calculate distance to travel
-                    #calculate angle
-                    #calculate new energy
-                    #add to total distance
-                if n.distance < 0 :
-                    #neutron reflected back to surface
-                    tot_reflected = tot_reflected + 1
-                    tot_reflected_ar.append(n)
-                    absorbed = 1 #flag to get out of loop
-                elif n.distance > 25 :
-                    #neutron reflected past point of interest
-                    absorbed = 1
-                    trans = trans +1
-                    trans_ar.append(n)
+        #initally travel normal to Earths Surface
+        ##determine initial cross section
+        n = Neutron(1,'fast',0,1,1,'scattered')
+        while (n.result == 'scattered'):  
+            #particle not absorbed or scattered out of system keep going
+            n.transport()
+        tally[n.result] +=1
 
+run()
 
-        
-        
-    
-
+print tally
