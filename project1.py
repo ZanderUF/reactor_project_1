@@ -24,6 +24,41 @@ oil_dist = 20 #Units: meters
 y_max = 25
 a=2.3
 b=0.1
+###-------Cross Sections----------------###
+##thermal##
+calcium_xs_total_thermal = 13.29
+calcium_xs_elastic_thermal = 8.0
+carbon_xs_total_thermal= 21.08
+carbon_xs_elastic_thermal = 21.035
+oxygen_xs_total_thermal = 15.0037
+oxygen_xs_elastic_thermal = 15.00
+hydrogen_xs_total_thermal = 301.1
+hydrogen_xs_total_thermal = 296.86
+sulfur_xs_total_thermal = 9.58
+sulfur_xs_elastic_thermal = 2.80
+nitro_xs_total_thermal = 65.38
+nitro_xs_elastic_thermal = 41.05
+##fast##
+calcium_xs_total_fast = 3.51
+calcium_xs_elastic_fast = 3.43
+carbon_xs_total_fast = 3.55
+carbon_xs_elastic_fast = 3.55
+oxygen_xs_total_fast = 3.263
+oxygen_xs_elastic_fast = 3.263
+hydrogen_xs_total_fast = 18.27
+hydrogen_xs_elastic_fast = 18.22
+sulfur_xs_total_fast = 3.23
+sulfur_xs_elastic_fast = 3.19
+nitro_xs_total_fast = 3.83
+nitro_xs_elastic_fast = 3.70
+
+##Avg Number of collions to thermalize##
+calcium_collision = 375.2984654	
+carbon_collision = 116.8557575	
+oxygen_collision = 153.5684244
+hydrogen_collision = 18.42386871
+sulfur_collision = 301.502774	
+nitro_collision = 135.2254046
 
 ###--------------------------------------###
 tally={'absorbed':0,'scattered':0,'leaked':0,'transmitted':0}
