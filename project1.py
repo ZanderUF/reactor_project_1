@@ -10,16 +10,12 @@ import matplotlib.pyplot as plt
 
 ####------------Variables----------------###
 num_src_neut = 1000
-abs_xs_lime = 0.1 #micro Units: b
-abs_xs_oil = 0.2 #micro Units: b
-total_xs_limestone = 0.3 #micro Units: b
-total_xs_oil = 0.4 #micro Units: b
+
 y=0
 density = 2.3*(1 + 0.1*y)
 intial_energy = 2.5 #Units: MeV
 Avagadro = 6.002 * np.power(10,13)
-A_mass_lime = 100.0869 #Units: g/mol [src: PNNL]
-A_mass_oil = 50  #Units: g/mol [src: PNNL]
+
 oil_dist = 20 #Units: meters
 y_max = 25
 a=2.3
@@ -33,7 +29,7 @@ carbon_xs_elastic_thermal = 21.035
 oxygen_xs_total_thermal = 15.0037
 oxygen_xs_elastic_thermal = 15.00
 hydrogen_xs_total_thermal = 301.1
-hydrogen_xs_total_thermal = 296.86
+hydrogen_xs_elastic_thermal = 296.86
 sulfur_xs_total_thermal = 9.58
 sulfur_xs_elastic_thermal = 2.80
 nitro_xs_total_thermal = 65.38
@@ -52,6 +48,24 @@ sulfur_xs_elastic_fast = 3.19
 nitro_xs_total_fast = 3.83
 nitro_xs_elastic_fast = 3.70
 
+##total cross sections
+scatter_xs_lime_thermal = calcium_xs_elastic_thermal + carbon_xs_elastic_thermal + oxygen_xs_elastic_thermal
+scatter_xs_lime_fast = calcium_xs_elastic_fast + carbon_xs_elastic_fast + oxygen_xs_elastic_fast
+
+scatter_xs_oil_thermal = carbon_xs_elastic_thermal + hydrogen_xs_elastic_thermal + nitro_xs_elastic_thermal + sulfur_xs_total_thermal
+scatter_xs_oil_fast = carbon_xs_elastic_fast + hydrogen_xs_elastic_fast + nitro_xs_elastic_fast + sulfur_xs_total_fast
+
+total_xs_lime_thermal = calcium_xs_total_thermal + carbon_xs_total_thermal + oxygen_xs_total_thermal 
+total_xs_lime_fast = calcium_xs_total_fast + carbon_xs_total_fast + oxygen_xs_total_fast
+abs_xs_lime_thermal = (calcium_xs_total_thermal - calcium_xs_elastic_thermal) + (carbon_xs_total_thermal-carbon_xs_elastic_thermal) + (oxygen_xs_total_thermal -oxygen_xs_elastic_thermal)
+abs_xs_lime_fast = (calcium_xs_total_fast - calcium_xs_elastic_fast) + (carbon_xs_total_fast - carbon_xs_elastic_fast) + (oxygen_xs_total_fast-oxygen_xs_elastic_fast)
+
+total_xs_oil_thermal = carbon_xs_total_thermal + hydrogen_xs_total_thermal + nitro_xs_total_thermal + sulfur_xs_total_thermal
+total_xs_oil_fast = carbon_xs_total_fast + hydrogen_xs_total_fast + nitro_xs_total_fast + sulfur_xs_total_fast
+abs_xs_oil_thermal = (carbon_xs_total_thermal-carbon_xs_elastic_thermal) + (hydrogen_xs_total_thermal - hydrogen_xs_elastic_thermal) + (nitro_xs_total_thermal - nitro_xs_elastic_thermal) + (sulfur_xs_total_thermal- sulfur_xs_elastic_thermal)
+abs_xs_oil_fast = (carbon_xs_total_fast - carbon_xs_elastic_fast) + (hydrogen_xs_total_fast - hydrogen_xs_elastic_fast) + (nitro_xs_total_fast - nitro_xs_total_fast) + (sulfur_xs_total_fast - sulfur_xs_elastic_fast)
+
+
 ##Avg Number of collions to thermalize##
 calcium_collision = 375.2984654	
 carbon_collision = 116.8557575	
@@ -59,6 +73,17 @@ oxygen_collision = 153.5684244
 hydrogen_collision = 18.42386871
 sulfur_collision = 301.502774	
 nitro_collision = 135.2254046
+
+##Mass Numbers##
+calcium_mass	= 40.078	
+carbon_mass	= 12.0107
+oxygen_mass	= 15.9994
+hydrogen_mass   = 1.00794
+sulfur_mass	= 32.065
+nitro_mass   = 14.0067
+
+limestone_mass = 100.0869 #Units: g/mol [src: PNNL]
+oil_mass = 50  #Units: g/mol [src: PNNL]			
 
 ###--------------------------------------###
 tally={'absorbed':0,'scattered':0,'leaked':0,'transmitted':0}
@@ -76,14 +101,15 @@ def calc_macro_xs(N_A,A_mass,density,micro_xs):
 
 ##create neutron object
 class Neutron(object):
-    def __init__(self,direction=1,group='fast',distance=0,sigma_a=1,sigma_s=1,result='scattered'):
+    def __init__(self,direction=1,group='fast',distance=0,sigma_a=1,sigma_s=1,result='scattered',mass=1,collisions=1):
         self.direction = direction
         self.group = group
         self.distance = distance
         self.sigma_a = sigma_a
         self.sigma_s = sigma_s
         self.result = result
-
+        self.mass = mass
+        self.collisions = collisions
     def absorbed(self):
         self.result = "absorbed"
 
@@ -95,27 +121,23 @@ class Neutron(object):
 
     def transmitted(self):
         self.transmitted = "transmitted"
-
-##-----Goes through the logic to see what interaction happens, how neutron transports through !!-----##
-    def transport(self):
-        #Determine if absorbed
-
-        if self.distance<oil_dist:  
-            #in limestone
-            self.lime_stone()
-        else:
-            #in oil
-            self.in_oil()
-            
+        
+    def down_scatter(self):
+       rand_down = np.random.rand()
+       if rand_down < self.collisions : 
+            self.group = 'thermal'
+       else:
+            self.group = 'fast'            
+    
     def scatter(self):
-        #counter = 0
-        #total_dist=0
-        A_mass=1
-        micro_xs = .5
+        ##decide which material to scatter with ##        
+        #self.which_mat_lime()
+        ##decide if the scatter thermalizes neutron##
+
         previous_pt = self.distance
         density_max = calc_density(a,b,y_max)
         ## Find max macroscopic xs
-        macro_xs_max = calc_macro_xs(Avagadro,A_mass,density_max,self.sigma_s)
+        macro_xs_max = calc_macro_xs(Avagadro,self.mass,density_max,self.sigma_s)
         
         ##--get new path length--##
         path_length = np.divide(-1,macro_xs_max) * np.log(np.random.rand())
@@ -129,7 +151,7 @@ class Neutron(object):
         
         rand_2 = np.random.rand()
         den_at_pt = calc_density(a,b,new_pt)
-        xs_at_pt = calc_macro_xs(Avagadro,A_mass,den_at_pt,micro_xs)
+        xs_at_pt = calc_macro_xs(Avagadro,self.mass,den_at_pt,self.sigma_s)
         
         #print 'xs/max xs', np.divide(xs_at_pt,macro_xs_max)
         #print 'rand 2 ', rand_2
@@ -140,68 +162,136 @@ class Neutron(object):
     #function to determine which atom a neutron will interact with in limestone
     #Determined from atomic fraction given in PNNL data
     def which_mat_lime(self):
-        xs = 0
         #pick random #
         rand = np.random.rand()
         if rand < 0.2 :
-            #select carbon
-            self.sigma_s = 1 #fill in cs for carbon
+            #select Carbon
+            ##determine if downscatter occurs
+            self.collisions = carbon_collision
+            self.down_scatter()
+            if self.group == 'fast':
+                self.sigma_s = carbon_xs_elastic_fast 
+            else:
+                self.sigma_s = carbon_xs_elastic_thermal
+                
+            self.mass = carbon_mass
         else:
             if rand < 0.4:
-                #select calcium
-                self.sigma_s  = 2 # fill in xs for calcium
+                #select Calcium
+                ##determine if downscatter occurs
+                self.collisions = calcium_collision
+                self.down_scatter()
+                if self.group == 'fast':
+                    self.sigma_s = calcium_xs_elastic_fast 
+                else:
+                    self.sigma_s = calcium_xs_elastic_thermal
+                    
+                self.mass = calcium_mass
+
             else:
                 #select Oxygen
-                self.sigma_s  = 3
+                ##determine if downscatter occurs
+                self.collisions = oxygen_collision
+                self.down_scatter()
+                if self.group == 'fast':
+                    self.sigma_s = oxygen_xs_elastic_fast 
+                else:
+                    self.sigma_s = oxygen_xs_elastic_thermal
+                    
+                self.mass = oxygen_mass
 
     #function to determine which atom a neutron will interact with in Oil
     def which_mat_oil(self):
-        xs=0
         #pick random #
         rand = np.random.rand()
         if rand < 0.002815 :
         #select Sulfur
-            self.sigma_s  = 1
+            ##determine if downscatter occurs
+            self.collisions = sulfur_collision
+            self.down_scatter()
+            if self.group == 'fast':
+                self.sigma_s = sulfur_xs_elastic_fast 
+            else:
+                self.sigma_s = sulfur_xs_elastic_thermal
+                    
+            self.mass = sulfur_mass            
+            
         else:
             if rand < 0.002578:
                 #select Nitrogen
-                self.sigma_s  = 2
+                self.collisions = nitro_collision
+                self.down_scatter()
+                if self.group == 'fast':
+                    self.sigma_s = nitro_xs_elastic_fast 
+                else:
+                    self.sigma_s = nitro_xs_elastic_thermal
+                        
+                self.mass = nitro_mass                        
             else:
                 if rand < 0.36522:
                     #select Carbon
-                    self.sigma_s  = 3
+                    self.collisions = carbon_collision
+                    self.down_scatter()
+                    if self.group == 'fast':
+                        self.sigma_s = carbon_xs_elastic_fast 
+                    else:
+                        self.sigma_s = carbon_xs_elastic_thermal                         
+                    self.mass = carbon_mass                    
                 else:
                     #select Hydrogen
-                    self.sigma_s  = 4
-
-    def lime_stone(self):
-        ####----in limestone----####
+                    self.collisions = hydrogen_collision
+                    self.down_scatter()
+                    if self.group == 'fast':
+                        self.sigma_s = hydrogen_xs_elastic_fast 
+                    else:
+                        self.sigma_s = hydrogen_xs_elastic_thermal             
+                    self.mass = hydrogen_mass  
+                    
+####-------in limestone------####
+    def in_lime_stone(self):
         abs_rand = np.random.rand()
-        if abs_rand < (abs_xs_lime/total_xs_limestone):
+        self.mass = limestone_mass
+        #check group
+        if self.group == 'fast':
+            xs_comp = abs_xs_lime_fast /total_xs_lime_fast
+            self.sigma_s = scatter_xs_lime_fast
+        else:
+            xs_comp = abs_xs_lime_thermal/total_xs_lime_thermal
+            self.sigma_s = scatter_xs_lime_thermal
+        #test if absorbed in oil
+        if abs_rand < xs_comp:
             self.absorbed()
         else:
             #scattering
-            ##Determine which element to scatter with
-            self.which_mat_oil()
             self.scatter()
-
             if self.distance < 0 :
                 #neutron reflected back to surface
                 self.leaked()
+            elif self.distance > oil_dist:
+                #neutron in oil
+                self.in_oil()
             elif self.distance > 25 :
-                #neutron reflected past point of interest
+                #neutron reflected past point of interest           
                 self.transmitted()
 
 ###--------in Oil---------###
     def in_oil(self):
         abs_rand = np.random.rand()
-        #test if  absorbed in oil
-        if abs_rand < (abs_xs_oil/total_xs_oil): 
+        self.mass = oil_mass
+        #check group
+        if self.group == 'fast':
+            xs_comp = abs_xs_oil_fast /total_xs_oil_fast
+            self.sigma_s = scatter_xs_oil_fast
+        else:
+            xs_comp = abs_xs_oil_thermal/total_xs_oil_thermal
+            self.sigma_s = scatter_xs_oil_thermal
+        #test if absorbed in oil
+        if abs_rand < xs_comp :
                 self.absorbed()
         else:
             #scattering
             ##Determine which element to scatter with
-            self.which_mat_lime()
+            #self.which_mat_lime()
             self.scatter()
 
             if self.distance < 0 :
@@ -210,16 +300,22 @@ class Neutron(object):
             elif self.distance > 25 :
                     #neutron reflected past point of interest
                     self.transmitted()
-
+                    
+##-----Goes through the logic to see what interaction happens, how neutron transports through !!-----##
+    def transport(self):
+        #determine if in oil or limestone
+        if self.distance<oil_dist:  
+            #in limestone
+            self.in_lime_stone()
+        else:
+            #in oil
+            self.in_oil()
+            
 #example creation of a neutron
 def run():
     i = 0
     for i in range(num_src_neut):
-        #total_dist = 0  #
-        #absorbed = 0 #flag if absorbed
-
         #initally travel normal to Earths Surface
-        ##determine initial cross section
         n = Neutron(1,'fast',0,1,1,'scattered')
         while (n.result == 'scattered'):  
             #particle not absorbed or scattered out of system keep going
