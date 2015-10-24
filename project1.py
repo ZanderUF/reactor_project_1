@@ -159,94 +159,6 @@ class Neutron(object):
             ##pt is accpeted
             self.distance = previous_pt + new_pt        
 
-    #function to determine which atom a neutron will interact with in limestone
-    #Determined from atomic fraction given in PNNL data
-    def which_mat_lime(self):
-        #pick random #
-        rand = np.random.rand()
-        if rand < 0.2 :
-            #select Carbon
-            ##determine if downscatter occurs
-            self.collisions = carbon_collision
-            self.down_scatter()
-            if self.group == 'fast':
-                self.sigma_s = carbon_xs_elastic_fast 
-            else:
-                self.sigma_s = carbon_xs_elastic_thermal
-                
-            self.mass = carbon_mass
-        else:
-            if rand < 0.4:
-                #select Calcium
-                ##determine if downscatter occurs
-                self.collisions = calcium_collision
-                self.down_scatter()
-                if self.group == 'fast':
-                    self.sigma_s = calcium_xs_elastic_fast 
-                else:
-                    self.sigma_s = calcium_xs_elastic_thermal
-                    
-                self.mass = calcium_mass
-
-            else:
-                #select Oxygen
-                ##determine if downscatter occurs
-                self.collisions = oxygen_collision
-                self.down_scatter()
-                if self.group == 'fast':
-                    self.sigma_s = oxygen_xs_elastic_fast 
-                else:
-                    self.sigma_s = oxygen_xs_elastic_thermal
-                    
-                self.mass = oxygen_mass
-
-    #function to determine which atom a neutron will interact with in Oil
-    def which_mat_oil(self):
-        #pick random #
-        rand = np.random.rand()
-        if rand < 0.002815 :
-        #select Sulfur
-            ##determine if downscatter occurs
-            self.collisions = sulfur_collision
-            self.down_scatter()
-            if self.group == 'fast':
-                self.sigma_s = sulfur_xs_elastic_fast 
-            else:
-                self.sigma_s = sulfur_xs_elastic_thermal
-                    
-            self.mass = sulfur_mass            
-            
-        else:
-            if rand < 0.002578:
-                #select Nitrogen
-                self.collisions = nitro_collision
-                self.down_scatter()
-                if self.group == 'fast':
-                    self.sigma_s = nitro_xs_elastic_fast 
-                else:
-                    self.sigma_s = nitro_xs_elastic_thermal
-                        
-                self.mass = nitro_mass                        
-            else:
-                if rand < 0.36522:
-                    #select Carbon
-                    self.collisions = carbon_collision
-                    self.down_scatter()
-                    if self.group == 'fast':
-                        self.sigma_s = carbon_xs_elastic_fast 
-                    else:
-                        self.sigma_s = carbon_xs_elastic_thermal                         
-                    self.mass = carbon_mass                    
-                else:
-                    #select Hydrogen
-                    self.collisions = hydrogen_collision
-                    self.down_scatter()
-                    if self.group == 'fast':
-                        self.sigma_s = hydrogen_xs_elastic_fast 
-                    else:
-                        self.sigma_s = hydrogen_xs_elastic_thermal             
-                    self.mass = hydrogen_mass  
-                    
 ####-------in limestone------####
     def in_lime_stone(self):
         abs_rand = np.random.rand()
@@ -287,7 +199,7 @@ class Neutron(object):
             self.sigma_s = scatter_xs_oil_thermal
         #test if absorbed in oil
         if abs_rand < xs_comp :
-                self.absorbed()
+            self.absorbed()
         else:
             #scattering
             ##Determine which element to scatter with
@@ -295,16 +207,16 @@ class Neutron(object):
             self.scatter()
 
             if self.distance < 0 :
-                    #neutron reflected back to surface
-                    self.leaked()
+                #neutron reflected back to surface
+                self.leaked()
             elif self.distance > 25 :
-                    #neutron reflected past point of interest
-                    self.transmitted()
+                #neutron reflected past point of interest
+                self.transmitted()
                     
 ##-----Goes through the logic to see what interaction happens, how neutron transports through !!-----##
     def transport(self):
         #determine if in oil or limestone
-        if self.distance<oil_dist:  
+        if self.distance < oil_dist:  
             #in limestone
             self.in_lime_stone()
         else:
@@ -316,7 +228,7 @@ def run():
     i = 0
     for i in range(num_src_neut):
         #initally travel normal to Earths Surface
-        n = Neutron(1,'fast',0,1,1,'scattered')
+        n = Neutron()
         while (n.result == 'scattered'):  
             #particle not absorbed or scattered out of system keep going
             n.transport()
