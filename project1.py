@@ -9,12 +9,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 ####------------Variables----------------###
-num_src_neut = 1000
-
+num_src_neut = 10
 y=0
 density = 2.3*(1 + 0.1*y)
+density_oil = 8.75
 intial_energy = 2.5 #Units: MeV
 Avagadro = 6.002 * np.power(10,13)
+##Random number seeds##
+np.random.seed(0)
+np.random.seed(1)
 
 oil_dist = 20 #Units: meters
 y_max = 25
@@ -65,7 +68,8 @@ total_xs_oil_fast = carbon_xs_total_fast + hydrogen_xs_total_fast + nitro_xs_tot
 abs_xs_oil_thermal = (carbon_xs_total_thermal-carbon_xs_elastic_thermal) + (hydrogen_xs_total_thermal - hydrogen_xs_elastic_thermal) + (nitro_xs_total_thermal - nitro_xs_elastic_thermal) + (sulfur_xs_total_thermal- sulfur_xs_elastic_thermal)
 abs_xs_oil_fast = (carbon_xs_total_fast - carbon_xs_elastic_fast) + (hydrogen_xs_total_fast - hydrogen_xs_elastic_fast) + (nitro_xs_total_fast - nitro_xs_total_fast) + (sulfur_xs_total_fast - sulfur_xs_elastic_fast)
 
-
+print abs_xs_oil_thermal, 'oil absorption'
+print total_xs_oil_thermal , 'oil xs thermal'
 ##Avg Number of collions to thermalize##
 calcium_collision = 375.2984654	
 carbon_collision = 116.8557575	
@@ -74,6 +78,10 @@ hydrogen_collision = 18.42386871
 sulfur_collision = 301.502774	
 nitro_collision = 135.2254046
 
+limestone_collision = (calcium_collision + carbon_collision + oxygen_collision)/3
+oil_collision = (carbon_collision + hydrogen_collision + nitro_collision + sulfur_collision)/4
+print 'limestone collisions', limestone_collision
+print 'oil collision', oil_collision
 ##Mass Numbers##
 calcium_mass	= 40.078	
 carbon_mass	= 12.0107
@@ -85,9 +93,13 @@ nitro_mass   = 14.0067
 limestone_mass = 100.0869 #Units: g/mol [src: PNNL]
 oil_mass = 50  #Units: g/mol [src: PNNL]			
 
-###--------------------------------------###
-tally={'absorbed':0,'scattered':0,'leaked':0,'transmitted':0}
+##arrays for plotting
+dist_array = []
+abs_array = []
 
+###--------------------------------------###
+tally={'absorbed':0,'leaked':0,'transmitted':0}
+tally_group = {'fast':0,'thermal':0}
 ##calculate the density based on given linear density variation##
 def calc_density(a,b,position):
     density_max = a*(1+b*position)
@@ -101,7 +113,7 @@ def calc_macro_xs(N_A,A_mass,density,micro_xs):
 
 ##create neutron object
 class Neutron(object):
-    def __init__(self,direction=1,group='fast',distance=0,sigma_a=1,sigma_s=1,result='scattered',mass=1,collisions=1):
+    def __init__(self,direction=1,group='fast',distance=0,sigma_a=1,sigma_s=1,result='scattered',mass=1,collisions=1,material = 'oil'):
         self.direction = direction
         self.group = group
         self.distance = distance
@@ -110,9 +122,11 @@ class Neutron(object):
         self.result = result
         self.mass = mass
         self.collisions = collisions
+        self.material = material
     def absorbed(self):
         self.result = "absorbed"
-
+        dist_array.append(self.distance)
+        abs_array.append(1.0)
     def scattered(self):
         self.result = "scattered"
         
@@ -120,57 +134,53 @@ class Neutron(object):
         self.result = "leaked"
 
     def transmitted(self):
-        self.transmitted = "transmitted"
+        self.result = "transmitted"
         
     def down_scatter(self):
        rand_down = np.random.rand()
-       if rand_down < self.collisions : 
+       if rand_down < 1/self.collisions : 
             self.group = 'thermal'
        else:
-            self.group = 'fast'            
-    
-    def scatter(self):
-        ##decide which material to scatter with ##        
-        #self.which_mat_lime()
-        ##decide if the scatter thermalizes neutron##
+            self.group = 'fast'
 
+    def scatter(self):
         previous_pt = self.distance
-        density_max = calc_density(a,b,y_max)
+        if self.material == 'limestone':
+            density_max = calc_density(a,b,y_max)
+        else:
+            density_max = density_oil
         ## Find max macroscopic xs
         macro_xs_max = calc_macro_xs(Avagadro,self.mass,density_max,self.sigma_s)
-        
         ##--get new path length--##
-        path_length = np.divide(-1,macro_xs_max) * np.log(np.random.rand())
-
+        path_length = np.divide(-1,macro_xs_max) * np.log(np.random.rand(1))
         ##Sample new angle
         self.direction = np.random.uniform(-1,1)
-
         ##--Calculate new point--##
         new_pt = previous_pt + path_length*self.direction
-        ##--Find second random number to determine if path length should be accepted##
-        
+        ##--Find second random number to determine if path length should be accepted##     
         rand_2 = np.random.rand()
         den_at_pt = calc_density(a,b,new_pt)
         xs_at_pt = calc_macro_xs(Avagadro,self.mass,den_at_pt,self.sigma_s)
-        
-        #print 'xs/max xs', np.divide(xs_at_pt,macro_xs_max)
-        #print 'rand 2 ', rand_2
         if rand_2 < np.divide(xs_at_pt,macro_xs_max):
             ##pt is accpeted
             self.distance = previous_pt + new_pt        
 
 ####-------in limestone------####
     def in_lime_stone(self):
-        abs_rand = np.random.rand()
+        abs_rand = np.random.rand(1)
         self.mass = limestone_mass
+        self.collisions = limestone_collision
+        self.material = 'limestone'
+        self.down_scatter()
         #check group
         if self.group == 'fast':
-            xs_comp = abs_xs_lime_fast /total_xs_lime_fast
+            xs_comp = abs_xs_lime_fast/total_xs_lime_fast
             self.sigma_s = scatter_xs_lime_fast
         else:
             xs_comp = abs_xs_lime_thermal/total_xs_lime_thermal
             self.sigma_s = scatter_xs_lime_thermal
         #test if absorbed in oil
+            print 'limestone ', xs_comp
         if abs_rand < xs_comp:
             self.absorbed()
         else:
@@ -181,7 +191,7 @@ class Neutron(object):
                 self.leaked()
             elif self.distance > oil_dist:
                 #neutron in oil
-                self.in_oil()
+               self.in_oil()
             elif self.distance > 25 :
                 #neutron reflected past point of interest           
                 self.transmitted()
@@ -190,6 +200,9 @@ class Neutron(object):
     def in_oil(self):
         abs_rand = np.random.rand()
         self.mass = oil_mass
+        self.collisions = oil_collision
+        self.material = 'oil'
+        self.down_scatter()
         #check group
         if self.group == 'fast':
             xs_comp = abs_xs_oil_fast /total_xs_oil_fast
@@ -198,17 +211,18 @@ class Neutron(object):
             xs_comp = abs_xs_oil_thermal/total_xs_oil_thermal
             self.sigma_s = scatter_xs_oil_thermal
         #test if absorbed in oil
+        print 'oil', xs_comp
         if abs_rand < xs_comp :
             self.absorbed()
         else:
             #scattering
-            ##Determine which element to scatter with
-            #self.which_mat_lime()
             self.scatter()
-
             if self.distance < 0 :
                 #neutron reflected back to surface
                 self.leaked()
+            elif self.distance < oil_dist:
+                self.in_lime_stone()
+                print 'switch'
             elif self.distance > 25 :
                 #neutron reflected past point of interest
                 self.transmitted()
@@ -232,8 +246,19 @@ def run():
         while (n.result == 'scattered'):  
             #particle not absorbed or scattered out of system keep going
             n.transport()
-        tally[n.result] +=1
+
+       # dist_array.append(n)
+        tally[n.result] += 1
+        tally_group[n.group] += 1
 
 run()
+hist, bins = np.histogram(dist_array,100)
+width = 0.7 * (bins[1] - bins[0])
+center = (bins[:-1] + bins[1:]) / 2
+
+plt.bar(center, hist, align='center', width=width)
+
+plt.show()
 
 print tally
+print tally_group
