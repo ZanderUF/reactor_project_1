@@ -20,7 +20,7 @@ Avagadro = 6.0022e23
 ##Random number seeds##
 np.random.seed(1)
 
-oil_dist = 10 #distance the oil is from the groud Units: cm
+oil_dist = 20 #distance the oil is from the groud Units: cm
 oil_depth = 5#Units: cm
 y_max = 25 #Units: cm
 a=2.3 # parameters for variable density
@@ -116,10 +116,7 @@ limestone_mass = 100.0869 #Units: g/mol [src: PNNL]
 oil_mass = 72.093  #Units: g/mol [src: PNNL]			
 
 ##arrays for plotting
-dist_array = []
-abs_array = []
-leaked_array = []
-scat_array = []
+interaction_ar = []
 ###--------------------------------------###
 tally={'absorbed':0,'leaked':0,'transmitted':0}
 tally_group = {'fast':0,'thermal':0}
@@ -136,7 +133,7 @@ def calc_macro_xs(N_A,A_mass,density,micro_xs):
 
 ##create neutron object
 class Neutron(object):
-    def __init__(self,direction=1,group='fast',distance=0,sigma_a=1,sigma_s=1,result='scattered',mass=1,collisions=1,material = 'limestone'):
+    def __init__(self,direction=1,group='fast',distance=0,sigma_a=1,sigma_s=total_xs_lime_fast,result='scattered',mass=limestone_mass,collisions=1,material = 'limestone'):
         self.direction = direction
         self.group = group
         self.distance = distance
@@ -146,17 +143,19 @@ class Neutron(object):
         self.mass = mass
         self.collisions = collisions
         self.material = material
+
     def absorbed(self):
         self.result = "absorbed"
-        abs_array.append(float(self.distance))
+        interaction_ar.append(self.distance)
     def scattered(self):
         self.result = "scattered"
-        scat_array.append(self.distance)      
+        interaction_ar.append(self.distance)
     def leaked(self):
         self.result = "leaked"
-        leaked_array.append(self.distance)
+        interaction_ar.append(self.distance)
     def transmitted(self):
         self.result = "transmitted"
+        interaction_ar.append(self.distance)
         
     def down_scatter(self):
        rand_down = np.random.rand()
@@ -171,29 +170,24 @@ class Neutron(object):
         previous_pt = self.distance
 
         while flag == 'False':
-            if self.material == 'limestone':
-                density_max = calc_density(a,b,y_max)
-                macro_xs_max = calc_macro_xs(Avagadro,self.mass,density_max,self.sigma_s)
+            density_max = calc_density(a,b,y_max)
+            macro_xs_max = calc_macro_xs(Avagadro,self.mass,density_max,self.sigma_s)
                 ##--get new path length--##
-                path_length = np.divide(-1,macro_xs_max) * np.log(np.random.rand(1))
+            path_length = np.divide(-1,macro_xs_max) * np.log(np.random.rand(1))
                 ##Sample new angle
-                self.direction = np.random.uniform(-1,1)
+            self.direction = np.random.uniform(-1,1)
                 ##--Calculate new point--##
-                new_pt = previous_pt - path_length*self.direction
+            new_pt = previous_pt - path_length*self.direction
                 ##--Find second random number to determine if path length should be accepted##     
-                rand_2 = np.random.rand()
-                den_at_pt = calc_density(a,b,new_pt)            
-                xs_at_pt = calc_macro_xs(Avagadro,self.mass,den_at_pt,self.sigma_s)
-                print 'LIMESTONE den_at_pt',den_at_pt
-                print ' LIMESTONE xs_at_pt',xs_at_pt
-                print ' LIMESTONE new pt', new_pt
-                print ' LIMESTONE max xs', macro_xs_max
+            rand_2 = np.random.rand()
+            den_at_pt = calc_density(a,b,new_pt)            
+            xs_at_pt = calc_macro_xs(Avagadro,self.mass,den_at_pt,self.sigma_s)
                 
-                if rand_2 < np.divide(xs_at_pt,macro_xs_max):
+            if rand_2 < np.divide(xs_at_pt,macro_xs_max):
                         ##pt is accpeted
-                        self.distance = previous_pt + new_pt 
-                        flag = 'True'
-                        return
+                self.distance = previous_pt + new_pt 
+                flag = 'True'
+                return
 
     def scatter_oil(self):
         self.scattered()
@@ -201,9 +195,7 @@ class Neutron(object):
         density_max = density_oil
             ## Find max macroscopic xs for oil## assuming constant
         macro_xs_max = calc_macro_xs(Avagadro,self.mass,density_max,self.sigma_s)
-        print 'OIL previous pt',previous_pt
-        print 'OIL density',density_oil
-        print 'OIL XS', macro_xs_max
+
         path_length = np.divide(-1,macro_xs_max) * np.log(np.random.rand(1))
                 ##Sample new angle
         self.direction = np.random.uniform(-1,1)
@@ -217,8 +209,8 @@ class Neutron(object):
         self.mass = limestone_mass
         self.collisions = limestone_collision
         self.material = 'limestone'
-        self.down_scatter()
         
+        self.down_scatter()
         #check group
         if self.group == 'fast':
             xs_comp = abs_xs_lime_fast/total_xs_lime_fast
@@ -256,6 +248,7 @@ class Neutron(object):
         self.collisions = oil_collision
         self.material = 'oil'
         self.down_scatter()
+
         #check group
         if self.group == 'fast':
             xs_comp = abs_xs_oil_fast /total_xs_oil_fast
@@ -287,10 +280,10 @@ class Neutron(object):
 ##-----Goes through the logic to see what interaction happens, how neutron transports through !!-----##
     def transport(self):
         #determine if in oil or limestone
+          
         if self.distance < oil_dist or self.distance > oil_dist + oil_depth:  
             #in limestone
             self.in_lime_stone()
-            return
         else:
             #in oil
             self.in_oil()
@@ -298,9 +291,31 @@ class Neutron(object):
 #example creation of a neutron
 def run():
     i = 0
+    
     for i in range(num_src_neut):
         #initally travel normal to Earths Surface
         n = Neutron()
+        flag = True
+        while flag == True :
+            density_max = calc_density(a,b,y_max)
+            macro_xs_max = calc_macro_xs(Avagadro,limestone_mass,density_max,total_xs_lime_fast)
+            ##--get new path length--##
+            path_length = np.divide(-1,macro_xs_max) * np.log(np.random.rand(1))
+            ##Sample new angle
+            direction = np.random.uniform(-1,1)
+            ##--Calculate new point--##
+            new_pt = path_length*direction
+            ##--Find second random number to determine if path length should be accepted##     
+            rand_2 = np.random.rand()
+            den_at_pt = calc_density(a,b,new_pt)            
+            xs_at_pt = calc_macro_xs(Avagadro,limestone_mass,den_at_pt,total_xs_lime_fast)
+            if rand_2 < np.divide(xs_at_pt,macro_xs_max):
+                    ##pt is accpeted
+                #n.distance =  new_pt 
+                flag = False
+        n.distance = float(new_pt)
+
+       # n.distance = np.random.rand()*2
         while (n.result == 'scattered'):  
             #particle not absorbed or scattered out of system keep going
             n.transport()
@@ -311,16 +326,13 @@ def run():
 
 run()
 
-arraytest=[]
-for i in range(0,10):
-    arraytest.append(i)
-hist_scat,bins = np.histogram(scat_array,25)
+hist_scat,bins = np.histogram(interaction_ar,2)
 #hist_scat,bins = np.histogram(scat_array,100)
 #hist_abs, bins = np.histogram(dist_array,100)
 width = 0.7 * (bins[1] - bins[0])
 center = (bins[:-1] + bins[1:]) / 2
 
-plt.hist(scat_array, bins=100)
+plt.hist(interaction_ar, bins=100)
 #plt.bar(center, hist_scat, align='center', width=width)
 #plt.bar(center, hist_abs, align='center', width=width)
 
