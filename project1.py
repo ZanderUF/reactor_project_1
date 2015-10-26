@@ -152,7 +152,7 @@ class Neutron(object):
         abs_array.append(1.0)
     def scattered(self):
         self.result = "scattered"
-        
+        scat_array.append(self.distance)      
     def leaked(self):
         self.result = "leaked"
         leaked_array.append(self.distance)
@@ -167,6 +167,7 @@ class Neutron(object):
             self.group = 'fast'
 
     def scatter(self):
+        self.scattered()
         previous_pt = self.distance
         if self.material == 'limestone':
             density_max = calc_density(a,b,y_max)
@@ -188,7 +189,6 @@ class Neutron(object):
         if rand_2 < np.divide(xs_at_pt,macro_xs_max):
             ##pt is accpeted
             self.distance = previous_pt + new_pt  
-        scat_array.append(self.distance)
 ####-------in limestone------####
     def in_lime_stone(self):
         abs_rand = np.random.rand(1)
@@ -196,6 +196,7 @@ class Neutron(object):
         self.collisions = limestone_collision
         self.material = 'limestone'
         self.down_scatter()
+        
         #check group
         if self.group == 'fast':
             xs_comp = abs_xs_lime_fast/total_xs_lime_fast
